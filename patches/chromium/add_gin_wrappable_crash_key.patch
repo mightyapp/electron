@@ -15,10 +15,10 @@ This patch should not be upstreamed, and can be removed in Electron 15 and
 beyond once we identify the cause of the crash.
 
 diff --git a/gin/BUILD.gn b/gin/BUILD.gn
-index c6059fdb0e0f74ee3ef78c5517634ed5a36f1b10..e16b2ec43b98c3b8724fd85085a33fe52a1e1979 100644
+index a0759e42926f7137ed037bd04083a78f99bdf447..6ac46048f76f4008ef9f0d301524e55a241079d4 100644
 --- a/gin/BUILD.gn
 +++ b/gin/BUILD.gn
-@@ -88,6 +88,10 @@ component("gin") {
+@@ -96,6 +96,10 @@ component("gin") {
      frameworks = [ "CoreFoundation.framework" ]
    }
  
