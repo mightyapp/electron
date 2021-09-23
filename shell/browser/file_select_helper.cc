@@ -237,6 +237,26 @@ void FileSelectHelper::RenderWidgetHostDestroyed(
   observation_.Reset();
 }
 
+namespace {
+
+// similar to private upstream method
+// RenderFrameHostImpl::IsDescendantOfWithinFrameTree
+bool IsDescendantOf(content::RenderFrameHost* child,
+                    content::RenderFrameHost* ancestor) {
+  if (!ancestor || !child)
+    return false;
+
+  for (auto* current = child->GetParent(); current;
+       current = current->GetParent()) {
+    if (current == ancestor)
+      return true;
+  }
+
+  return false;
+}
+
+}  // namespace
+
 // content::WebContentsObserver:
 void FileSelectHelper::RenderFrameHostChanged(
     content::RenderFrameHost* old_host,
@@ -246,7 +266,7 @@ void FileSelectHelper::RenderFrameHostChanged(
   // The |old_host| and its children are now pending deletion. Do not give
   // them file access past this point.
   if (render_frame_host_ == old_host ||
-      render_frame_host_->IsDescendantOf(old_host)) {
+      IsDescendantOf(render_frame_host_, old_host)) {
     render_frame_host_ = nullptr;
   }
 }
