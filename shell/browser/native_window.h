@@ -24,6 +24,10 @@ namespace base {
 class DictionaryValue;
 }
 
+namespace web_modal {
+class WebContentsModalDialogHost;
+}
+
 namespace content {
 struct NativeWebKeyboardEvent;
 }
@@ -43,6 +47,7 @@ class PersistentDictionary;
 
 namespace electron {
 
+class WebContentsModalDialogHostViews;
 class ElectronMenuModel;
 class NativeBrowserView;
 
@@ -304,6 +309,8 @@ class NativeWindow : public base::SupportsUserData,
   void NotifyWindowSystemContextMenu(int x, int y, bool* prevent_default);
   void NotifyLayoutWindowControlsOverlay();
 
+  void SetModalDialogMarginTop(int top);
+
 #if defined(OS_WIN)
   void NotifyWindowMessage(UINT message, WPARAM w_param, LPARAM l_param);
 #endif
@@ -312,6 +319,8 @@ class NativeWindow : public base::SupportsUserData,
   void RemoveObserver(NativeWindowObserver* obs) {
     observers_.RemoveObserver(obs);
   }
+
+  web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost();
 
   views::Widget* widget() const { return widget_.get(); }
   views::View* content_view() const { return content_view_; }
@@ -415,6 +424,9 @@ class NativeWindow : public base::SupportsUserData,
   std::u16string accessible_title_;
 
   gfx::Rect overlay_rect_;
+
+  // The host for use in positioning the web contents modal dialog.
+  std::unique_ptr<WebContentsModalDialogHostViews> dialog_host_;
 
   base::WeakPtrFactory<NativeWindow> weak_factory_{this};
 
