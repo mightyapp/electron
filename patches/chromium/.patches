@@ -133,3 +133,5 @@ cherry-pick-f781748dcb3c.patch
 cherry-pick-c5571653d932.patch
 fix_crash_when_saving_edited_pdf_files.patch
 fix_add_support_for_webauthn_on_macos.patch
+fix_add_support_for_webauthn_on_macos.patch
+fix_work_around_origin_checks_for_webauthn_in_electron.patch
