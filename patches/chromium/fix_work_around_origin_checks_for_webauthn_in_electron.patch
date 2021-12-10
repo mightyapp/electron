@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Eric Rahm <ericrahm@gmail.com>
+Date: Fri, 10 Dec 2021 09:46:36 -0800
+Subject: fix: Work around origin checks for WebAuthn in Electron
+
+In Electron the app itself does not have an `https` or `http` scheme. Regardless it should be able to participate in WebAuthn. This is a rather blunt work-around until a finer grained approach is figured out.
+
+diff --git a/content/browser/webauth/webauth_request_security_checker.cc b/content/browser/webauth/webauth_request_security_checker.cc
+index 835a9c052388ec0a57c4316ce3f7c45b29963283..4dcbadd97fadcef9e71c4c7a9e86c923567d64f3 100644
+--- a/content/browser/webauth/webauth_request_security_checker.cc
++++ b/content/browser/webauth/webauth_request_security_checker.cc
+@@ -58,7 +58,9 @@ blink::mojom::AuthenticatorStatus ValidateEffectiveDomain(
+   // above, HTTP is effectively restricted to just "localhost".
+   if (caller_origin.scheme() != url::kHttpScheme &&
+       caller_origin.scheme() != url::kHttpsScheme) {
++#if 0
+     return blink::mojom::AuthenticatorStatus::INVALID_PROTOCOL;
++#endif
+   }
+ 
+   return blink::mojom::AuthenticatorStatus::SUCCESS;
+@@ -72,6 +74,7 @@ blink::mojom::AuthenticatorStatus ValidateEffectiveDomain(
+ absl::optional<std::string> GetRelyingPartyId(
+     const std::string& claimed_relying_party_id,
+     const url::Origin& caller_origin) {
++#if 0
+   if (WebAuthRequestSecurityChecker::OriginIsCryptoTokenExtension(
+           caller_origin)) {
+     // This code trusts cryptotoken to handle the validation itself.
+@@ -104,6 +107,7 @@ absl::optional<std::string> GetRelyingPartyId(
+     return absl::nullopt;
+   }
+ 
++#endif
+   return claimed_relying_party_id;
+ }
+ 
+diff --git a/third_party/blink/renderer/modules/credentialmanager/credentials_container.cc b/third_party/blink/renderer/modules/credentialmanager/credentials_container.cc
+index 6125222888c79fa61a56a23ce8a3e6dfe2861a23..894450b5b3cce5e756e26baa1e26046b2874cbe2 100644
+--- a/third_party/blink/renderer/modules/credentialmanager/credentials_container.cc
++++ b/third_party/blink/renderer/modules/credentialmanager/credentials_container.cc
+@@ -168,6 +168,7 @@ bool IsAncestorChainValidForWebOTP(const Frame* frame) {
+ bool CheckSecurityRequirementsBeforeRequest(
+     ScriptPromiseResolver* resolver,
+     RequiredOriginType required_origin_type) {
++#if 0
+   // Ignore calls if the current realm execution context is no longer valid,
+   // e.g., because the responsible document was detached.
+   DCHECK(resolver->GetExecutionContext());
+@@ -250,6 +251,7 @@ bool CheckSecurityRequirementsBeforeRequest(
+       }
+       break;
+   }
++#endif
+ 
+   return true;
+ }
