@@ -1,0 +1,43 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Eric Rahm <ericrahm@gmail.com>
+Date: Fri, 17 Dec 2021 14:56:37 -0800
+Subject: fix: Backport cleanup fixes
+
+Fix rebase issues backporting to v15.
+
+diff --git a/chrome/browser/ui/browser_window.h b/chrome/browser/ui/browser_window.h
+index f1b87810c538ac238f90aeb686930fd61135f730..9f431513c61c8755bdcdb41e7f2120bbd540e780 100644
+--- a/chrome/browser/ui/browser_window.h
++++ b/chrome/browser/ui/browser_window.h
+@@ -14,7 +14,7 @@
+ #include "chrome/browser/apps/intent_helper/apps_navigation_types.h"
+ #include "chrome/browser/lifetime/browser_close_manager.h"
+ #include "chrome/browser/signin/chrome_signin_helper.h"
+-#include "chrome/browser/translate/chrome_translate_client.h"
++//#include "chrome/browser/translate/chrome_translate_client.h"
+ #include "chrome/browser/ui/bookmarks/bookmark_bar.h"
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/browser/ui/browser_dialogs.h"
+@@ -24,6 +24,7 @@
+ #include "chrome/browser/ui/user_education/in_product_help.h"
+ #include "chrome/common/buildflags.h"
+ #include "components/content_settings/core/common/content_settings_types.h"
++#include "components/translate/core/browser/translate_step.h"
+ #include "components/translate/core/common/translate_errors.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+ #include "ui/base/base_window.h"
+diff --git a/components/services/language_detection/public/cpp/language_detection_service.h b/components/services/language_detection/public/cpp/language_detection_service.h
+index 0c6a439de604a6d6cba0ea3307d6177e77150508..9551b9156c3ede2165908b77b03073e4098e6eca 100644
+--- a/components/services/language_detection/public/cpp/language_detection_service.h
++++ b/components/services/language_detection/public/cpp/language_detection_service.h
+@@ -5,7 +5,9 @@
+ #ifndef COMPONENTS_SERVICES_LANGUAGE_DETECTION_PUBLIC_CPP_LANGUAGE_DETECTION_SERVICE_H_
+ #define COMPONENTS_SERVICES_LANGUAGE_DETECTION_PUBLIC_CPP_LANGUAGE_DETECTION_SERVICE_H_
+ 
+-#include "components/services/language_detection/public/mojom/language_detection.mojom-forward.h"
++//#include
++//"components/services/language_detection/public/mojom/language_detection.mojom-forward.h"
++#include "components/services/language_detection/public/mojom/language_detection.mojom.h"
+ #include "mojo/public/cpp/bindings/remote.h"
+ 
+ namespace language_detection {

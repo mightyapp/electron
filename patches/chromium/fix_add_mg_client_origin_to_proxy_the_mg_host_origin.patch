@@ -1,0 +1,101 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Eric Rahm <ericrahm@gmail.com>
+Date: Fri, 17 Dec 2021 14:58:04 -0800
+Subject: fix: Add `mg_client_origin` to proxy the mg host origin
+
+Add an `mgCallerOrigin` field to `PublicKeyCredentials` options.
+
+diff --git a/content/browser/webauth/authenticator_common.cc b/content/browser/webauth/authenticator_common.cc
+index 13393c3ba414f6467de721d53fec91eee8d6272a..c8cdaeef26fa2e15749a9ce6a78463cde44dc7de 100644
+--- a/content/browser/webauth/authenticator_common.cc
++++ b/content/browser/webauth/authenticator_common.cc
+@@ -825,6 +825,10 @@ void AuthenticatorCommon::MakeCredential(
+     url::Origin caller_origin,
+     blink::mojom::PublicKeyCredentialCreationOptionsPtr options,
+     blink::mojom::Authenticator::MakeCredentialCallback callback) {
++  if (options->mg_caller_origin) {
++    caller_origin = url::Origin::Create(GURL(*options->mg_caller_origin));
++  }
++
+   if (request_) {
+     if (WebAuthRequestSecurityChecker::OriginIsCryptoTokenExtension(
+             caller_origin)) {
+@@ -1101,6 +1105,10 @@ void AuthenticatorCommon::GetAssertion(
+     blink::mojom::PublicKeyCredentialRequestOptionsPtr options,
+     blink::mojom::PaymentOptionsPtr payment,
+     blink::mojom::Authenticator::GetAssertionCallback callback) {
++  if (options->mg_caller_origin) {
++    caller_origin = url::Origin::Create(GURL(*options->mg_caller_origin));
++  }
++
+   if (request_) {
+     if (WebAuthRequestSecurityChecker::OriginIsCryptoTokenExtension(
+             caller_origin)) {
+diff --git a/third_party/blink/public/mojom/webauthn/authenticator.mojom b/third_party/blink/public/mojom/webauthn/authenticator.mojom
+index 19d0d7619bca25ed577b8d5fdf7a71d8b395e6a5..19fc70f8c894cc89989ee5203f0c623eb105e0d6 100644
+--- a/third_party/blink/public/mojom/webauthn/authenticator.mojom
++++ b/third_party/blink/public/mojom/webauthn/authenticator.mojom
+@@ -364,6 +364,8 @@ struct PublicKeyCredentialRequestOptions {
+   // If true, attempt to read a credblob.
+   // https://fidoalliance.org/specs/fido-v2.1-rd-20201208/fido-client-to-authenticator-protocol-v2.1-rd-20201208.html#sctn-credBlob-extension
+   bool get_cred_blob;
++
++  string? mg_caller_origin;
+ };
+ 
+ // See https://w3c.github.io/webauthn/#enumdef-attestationconveyancepreference
+@@ -502,6 +504,8 @@ struct PublicKeyCredentialCreationOptions {
+   // migration.
+   // https://groups.google.com/a/chromium.org/g/blink-dev/c/xHC3AtU_65A
+   bool google_legacy_app_id_support = false;
++
++  string? mg_caller_origin;
+ };
+ 
+ enum PublicKeyCredentialType {
+diff --git a/third_party/blink/renderer/modules/credentialmanager/credential_manager_type_converters.cc b/third_party/blink/renderer/modules/credentialmanager/credential_manager_type_converters.cc
+index e141951552514f914797acb92a72e404e073c6fb..6df2c4b11ae35a43ef90897644af626728182de1 100644
+--- a/third_party/blink/renderer/modules/credentialmanager/credential_manager_type_converters.cc
++++ b/third_party/blink/renderer/modules/credentialmanager/credential_manager_type_converters.cc
+@@ -596,6 +596,10 @@ TypeConverter<PublicKeyCredentialCreationOptionsPtr,
+     }
+   }
+ 
++  if (options.hasMgCallerOrigin()) {
++    mojo_options->mg_caller_origin = options.mgCallerOrigin();
++  }
++
+   return mojo_options;
+ }
+ 
+@@ -719,6 +723,10 @@ TypeConverter<PublicKeyCredentialRequestOptionsPtr,
+     }
+   }
+ 
++  if (options.hasMgCallerOrigin()) {
++    mojo_options->mg_caller_origin = options.mgCallerOrigin();
++  }
++
+   return mojo_options;
+ }
+ 
+diff --git a/third_party/blink/renderer/modules/credentialmanager/public_key_credential_creation_options.idl b/third_party/blink/renderer/modules/credentialmanager/public_key_credential_creation_options.idl
+index 3cf8af1e135eff05c734ad8dcbb426519133ff09..2acbca6a555b1b1c8cf7f8f7240e1d77f3c14504 100644
+--- a/third_party/blink/renderer/modules/credentialmanager/public_key_credential_creation_options.idl
++++ b/third_party/blink/renderer/modules/credentialmanager/public_key_credential_creation_options.idl
+@@ -23,4 +23,5 @@ dictionary PublicKeyCredentialCreationOptions {
+     AuthenticatorSelectionCriteria authenticatorSelection;
+     AttestationConveyancePreference attestation;
+     AuthenticationExtensionsClientInputs extensions;
++    DOMString mgCallerOrigin;
+ };
+diff --git a/third_party/blink/renderer/modules/credentialmanager/public_key_credential_request_options.idl b/third_party/blink/renderer/modules/credentialmanager/public_key_credential_request_options.idl
+index 041dcb58671c98198b9911bf3189fe1ce25ab5a1..628875f4e059a4e9173a2e4503ef0c5d3e0d3f64 100644
+--- a/third_party/blink/renderer/modules/credentialmanager/public_key_credential_request_options.idl
++++ b/third_party/blink/renderer/modules/credentialmanager/public_key_credential_request_options.idl
+@@ -11,4 +11,5 @@ dictionary PublicKeyCredentialRequestOptions {
+     sequence<PublicKeyCredentialDescriptor> allowCredentials = [];
+     UserVerificationRequirement userVerification;
+     AuthenticationExtensionsClientInputs extensions;
++    DOMString mgCallerOrigin;
+ };
