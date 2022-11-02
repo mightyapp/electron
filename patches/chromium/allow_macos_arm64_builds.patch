@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: "@anulman" <anulman@gmail.com>
+Date: Wed, 2 Nov 2022 13:08:43 -0400
+Subject: allow macos arm64 builds
+
+I was not able to build release builds on macos arm64 until I added
+this. Copied from upstream; we can drop it if it conflicts
+
+diff --git a/build/toolchain/mac/BUILD.gn b/build/toolchain/mac/BUILD.gn
+index 1d0f2a2c22865667981b132eeac0322afc7c3890..37b2dc88e94e69bb24082060706f422f6bbe62eb 100644
+--- a/build/toolchain/mac/BUILD.gn
++++ b/build/toolchain/mac/BUILD.gn
+@@ -97,3 +97,13 @@ mac_toolchain("clang_x64_v8_mips64el") {
+     }
+   }
+ }
++
++mac_toolchain("clang_arm64_v8_x64") {
++  toolchain_args = {
++    current_cpu = "arm64"
++
++    if (defined(v8_current_cpu)) {
++      v8_current_cpu = "x64"
++    }
++  }
++}
