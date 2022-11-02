@@ -74,7 +74,7 @@ void ElectronMainDelegate::OverrideChildProcessPath() {
 
 void ElectronMainDelegate::SetUpBundleOverrides() {
   base::mac::ScopedNSAutoreleasePool pool;
-  NSBundle* bundle = MainApplicationBundle();
+  NSBundle* bundle = OuterApplicationBundle();
   std::string base_bundle_id =
       base::SysNSStringToUTF8([bundle bundleIdentifier]);
   NSString* team_id = [bundle objectForInfoDictionaryKey:@"ElectronTeamID"];
