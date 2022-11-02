@@ -25,7 +25,7 @@ namespace electron {
 namespace {
 
 base::FilePath GetFrameworksPath() {
-  return MainApplicationBundlePath().Append("Contents").Append("Frameworks");
+  return OuterApplicationBundlePath().Append("Contents").Append("Frameworks");
 }
 
 base::FilePath GetHelperAppPath(const base::FilePath& frameworks_path,

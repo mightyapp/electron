@@ -28,6 +28,7 @@ namespace electron {
 NSBundle* OuterApplicationBundle();
 NSBundle* MainApplicationBundle();
 base::FilePath MainApplicationBundlePath();
+base::FilePath OuterApplicationBundlePath();
 
 #if defined(OS_MAC)
 extern "C" {
@@ -39,11 +40,6 @@ __attribute__((visibility("default"))) void SetOverrideMainBundlePath(
 __attribute__((visibility("default"))) void SetOverrideOuterBundle(
     NSBundle* bundle);
 __attribute__((visibility("default"))) void SetOverrideOuterBundlePath(
-    const std::string file_path);
-
-__attribute__((visibility("default"))) void SetOverrideFrameworkBundle(
-    NSBundle* bundle);
-__attribute__((visibility("default"))) void SetOverrideFrameworkBundlePath(
     const std::string file_path);
 }
 #else   // defined(OS_MAC)

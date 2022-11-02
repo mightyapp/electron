@@ -34,9 +34,7 @@ static NSBundle* g_override_framework_bundle = nil;
 
 static void AssignOverrideBundle(NSBundle* new_bundle,
                                  NSBundle** override_bundle) {
-  NSLog(@"AssignOverrideBundle");
   if (new_bundle != *override_bundle) {
-    NSLog(@"IN IF");
     [*override_bundle release];
     *override_bundle = [new_bundle retain];
   }
@@ -51,7 +49,6 @@ static void AssignOverridePath(const base::FilePath& file_path,
 }
 
 void SetOverrideMainBundle(NSBundle* bundle) {
-  NSLog(@"Setting override for main bundle: %@", [bundle bundlePath]);
   AssignOverrideBundle(bundle, &g_override_main_bundle);
 }
 
@@ -61,7 +58,6 @@ void SetOverrideMainBundlePath(const std::string file_path) {
 }
 
 void SetOverrideFrameworkBundle(NSBundle* bundle) {
-  NSLog(@"Setting override for framework bundle: %@", [bundle bundlePath]);
   base::mac::SetOverrideFrameworkBundle(bundle);
   AssignOverrideBundle(bundle, &g_override_framework_bundle);
 }
@@ -73,7 +69,6 @@ void SetOverrideFrameworkBundlePath(const std::string file_path) {
 }
 
 void SetOverrideOuterBundle(NSBundle* bundle) {
-  NSLog(@"Setting override for outer bundle: %@", [bundle bundlePath]);
   base::mac::SetOverrideOuterBundle(bundle);
   AssignOverrideBundle(bundle, &g_override_outer_bundle);
 }
@@ -86,8 +81,6 @@ void SetOverrideOuterBundlePath(const std::string file_path) {
 
 base::FilePath MainApplicationBundlePath() {
   if (g_override_outer_bundle) {
-    NSLog(@"Using override for outer bundle instead of main: %@",
-          [g_override_outer_bundle bundlePath]);
     return base::mac::NSStringToFilePath([g_override_outer_bundle bundlePath]);
   }
 
@@ -138,6 +131,10 @@ NSBundle* OuterApplicationBundle() {
   }
 
   return MainApplicationBundle();
+}
+
+base::FilePath OuterApplicationBundlePath() {
+  return base::mac::NSStringToFilePath([OuterApplicationBundle() bundlePath]);
 }
 
 }  // namespace electron
