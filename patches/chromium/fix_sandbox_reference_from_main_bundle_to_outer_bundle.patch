@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: "@anulman" <anulman@gmail.com>
+Date: Wed, 2 Nov 2022 13:07:48 -0400
+Subject: fix sandbox reference from main bundle to outer bundle
+
+This allows other bundles to dynamically link into `Electron
+Framework.framework` and successfully sandbox children processes spawned
+by `ElectronMain`
+
+diff --git a/content/browser/sandbox_parameters_mac.mm b/content/browser/sandbox_parameters_mac.mm
+index a3c412f36568033dfc3d5bc1e978c0fcad771875..5cc4f301159d72bbe82d35d53596b9fcd2a9fbac 100644
+--- a/content/browser/sandbox_parameters_mac.mm
++++ b/content/browser/sandbox_parameters_mac.mm
+@@ -100,7 +100,7 @@ void SetupCommonSandboxParameters(sandbox::SeatbeltExecClient* client) {
+       sandbox::policy::kParamDisableSandboxDenialLogging, !enable_logging));
+ 
+   std::string bundle_path =
+-      sandbox::policy::GetCanonicalPath(base::mac::MainBundlePath()).value();
++      sandbox::policy::GetCanonicalPath(base::mac::OuterBundlePath()).value();
+   CHECK(client->SetParameter(sandbox::policy::kParamBundlePath, bundle_path));
+ 
+   std::string bundle_id = base::mac::BaseBundleID();
