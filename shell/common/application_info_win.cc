@@ -43,6 +43,16 @@ std::string GetApplicationVersion() {
   return base::UTF16ToUTF8(info->product_version());
 }
 
+std::string GetOuterApplicationName() {
+  // todo - implement for win?
+  return GetApplicationName();
+}
+
+std::string GetOuterApplicationVersion() {
+  // todo - implement for win?
+  return GetApplicationVersion();
+}
+
 void SetAppUserModelID(const std::wstring& name) {
   g_app_user_model_id = name;
   SetCurrentProcessExplicitAppUserModelID(g_app_user_model_id.c_str());

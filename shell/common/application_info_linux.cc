@@ -75,4 +75,14 @@ std::string GetApplicationVersion() {
   return ret;
 }
 
+std::string GetOuterApplicationName() {
+  // todo - implement for linux?
+  return GetApplicationName();
+}
+
+std::string GetOuterApplicationVersion() {
+  // todo - implement for linux?
+  return GetApplicationVersion();
+}
+
 }  // namespace electron

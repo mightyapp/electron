@@ -14,13 +14,16 @@ namespace electron {
 
 namespace {
 
-std::string ApplicationInfoDictionaryValue(NSString* key) {
-  return base::SysNSStringToUTF8(
-      [MainApplicationBundle().infoDictionary objectForKey:key]);
+std::string ApplicationInfoDictionaryValue(
+    NSString* key,
+    NSBundle* bundle = MainApplicationBundle()) {
+  return base::SysNSStringToUTF8([bundle.infoDictionary objectForKey:key]);
 }
 
-std::string ApplicationInfoDictionaryValue(CFStringRef key) {
-  return ApplicationInfoDictionaryValue(base::mac::CFToNSCast(key));
+std::string ApplicationInfoDictionaryValue(
+    CFStringRef key,
+    NSBundle* bundle = MainApplicationBundle()) {
+  return ApplicationInfoDictionaryValue(base::mac::CFToNSCast(key), bundle);
 }
 
 }  // namespace
@@ -31,6 +34,16 @@ std::string GetApplicationName() {
 
 std::string GetApplicationVersion() {
   return ApplicationInfoDictionaryValue(@"CFBundleShortVersionString");
+}
+
+std::string GetOuterApplicationName() {
+  return ApplicationInfoDictionaryValue(kCFBundleNameKey,
+                                        OuterApplicationBundle());
+}
+
+std::string GetOuterApplicationVersion() {
+  return ApplicationInfoDictionaryValue(@"CFBundleShortVersionString",
+                                        OuterApplicationBundle());
 }
 
 }  // namespace electron

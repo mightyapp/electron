@@ -68,6 +68,8 @@ void ElectronMainDelegate::OverrideChildProcessPath() {
   if (!base::PathExists(helper_path))
     helper_path = GetHelperAppPath(frameworks_path, GetApplicationName());
   if (!base::PathExists(helper_path))
+    helper_path = GetHelperAppPath(frameworks_path, GetOuterApplicationName());
+  if (!base::PathExists(helper_path))
     LOG(FATAL) << "Unable to find helper app";
   base::PathService::Override(content::CHILD_PROCESS_EXE, helper_path);
 }

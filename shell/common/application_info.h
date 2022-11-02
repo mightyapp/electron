@@ -20,6 +20,8 @@ std::string GetPossiblyOverriddenApplicationName();
 
 std::string GetApplicationName();
 std::string GetApplicationVersion();
+std::string GetOuterApplicationName();
+std::string GetOuterApplicationVersion();
 // Returns the user agent of Electron.
 std::string GetApplicationUserAgent();
 
