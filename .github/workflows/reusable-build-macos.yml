@@ -1,0 +1,94 @@
+name: Reusable Build && Publish Template
+on:
+  workflow_call:
+    inputs:
+      runner:
+        type: string
+        default: macos-latest
+  workflow_dispatch:
+    inputs:
+      runner:
+        required: true
+        default: macos-latest
+        type: choice
+        options:
+          - macos-latest
+          - [self-hosted, macos]
+
+env:
+  node-version: '14'
+  python-version: '3.10'
+
+jobs:
+  build:
+    name: Build MgElectron
+    runs-on: ${{ inputs.runner }}
+    steps:
+      # Prepare env
+      ## Setup caches
+      - name: Setup Node.js ${{ env.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.node-version }}
+      - name: Setup Python3
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.python-version }}
+
+      ## Setup caches
+      - name: Get npm cache directory
+        id: npm-cache-dir
+        run: |
+          echo "::set-output name=dir::$(npm config get cache)"
+      - name: Setup npm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: ${{ runner.os }}-${{ runner.arch }}-node
+      - name: Setup workspace cache
+        uses: actions/cache@v3
+        id: workspace-cache # use this to check for `cache-hit` ==> if: steps.workspace-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ github.workspace }}
+          key: ${{ runner.os }}-${{ runner.arch }}-workspace
+
+      ## Setup electron build tools && workspace
+      - name: Install electron-build-tools
+        run: npm i -g @electron/build-tools
+      - name: Init working directory
+        if: steps.workspace-cache.outputs.cache-hit != 'true'
+        run: |
+          e init -r ${{ github.workspace }} -i release --fork mightyapp/electron release
+          jq '.remotes.electron.origin = .remotes.electron.fork|del(.remotes.electron.fork)|.gen.args[.gen.args|length] |= "symbol_level = 1"|.gen.args[.gen.args|length] |= "blink_symbol_level = 1"' \
+            ~/.electron_build_tools/configs/evm.release.json > ~/.electron_build_tools/configs/evm.release.json.tmp
+          mv ~/.electron_build_tools/configs/evm.release.json.tmp ~/.electron_build_tools/configs/evm.release.json
+          sed -i.bak 's/electron\/electron/mightyapp\/electron/' ${{ github.workspace }}/.gclient
+          rm ${{ github.workspace }}/.gclient.bak
+          mkdir -p ${{ github.workspace }}/src
+          # git clone git@github.com:mightyapp/electron ${{ github.workspace }}/src/electron --branch aidan/rebase-15-x-y
+
+      # Build && publish
+      ## Checkout, sync, and build MgElectron
+      - name: Checkout electron src
+        uses: actions/checkout@v3
+        with:
+          # relative to ${{ github.workspace }}
+          path: src/electron
+      - name: Sync Electron & Cr deps
+        run: e sync
+      - name: Build electron src
+        run: e build
+
+      ## Publish output (artifact && checksum)
+      - name: Prepare release artifact
+        run: |
+          rm -rf ${{ github.workspace }}/src/out/Release/*.zip
+          e build electron:dist
+      - name: Get release artifact checksum
+        run: |
+          echo "::set-output name=checksum::$(shasum -a 256 ${{ github.workspace }}/src/out/Release/dist.zip | awk '{ print $1 })'"
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: electron-${{ runner.os }}-${{ runner.architecture }}
+          path: ${{ github.workspace }}/src/out/Release/dist.zip
