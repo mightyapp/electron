@@ -2,18 +2,36 @@ name: Reusable Build && Publish Template
 on:
   workflow_call:
     inputs:
-      runner:
+      platform-arch:
+        # see options in workflow_dispatch, below
+        required: true
         type: string
-        default: macos-latest
+      dist-cache-key:
+        required: true
+        type: string
+      skip-sentry:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      SENTRY_TOKEN:
+        required: false
   workflow_dispatch:
     inputs:
-      runner:
+      platform-arch:
         required: true
-        default: macos-latest
+        default: darwin-x64
         type: choice
         options:
-          - macos-latest
-          - [self-hosted, macos]
+          - darwin-x64
+          - darwin-arm64
+      dist-cache-key:
+        required: false
+        type: string
+      skip-sentry:
+        required: false
+        type: boolean
+        default: false
 
 env:
   node-version: '14'
@@ -22,11 +40,18 @@ env:
 jobs:
   build:
     name: Build MgElectron
-    runs-on: ${{ inputs.runner }}
+    # TODO - proper delegation
+    runs-on: ${{ inputs.platform-arch == 'darwin-x64' && 'macos-latest' || 'macos-latest' }}
     steps:
       # Prepare env
-      ## Setup caches
-      - name: Setup Node.js ${{ env.node-version }}
+      ## Setup languages
+      - name: Setup Node.js ${{ env.node-version }} (self-hosted)
+        # ONLY RUN on self-hosted
+        if: ${{ inputs.platform-arch != 'darwin-x64' }}
+        run: fnm install
+      - name: Setup Node.js ${{ env.node-version }} (GH-hosted)
+        # DO NOT RUN on self-hosted
+        if: ${{ inputs.platform-arch == 'darwin-x64' }}
         uses: actions/setup-node@v3
         with:
           node-version: ${{ env.node-version }}
@@ -35,28 +60,30 @@ jobs:
         with:
           python-version: ${{ env.python-version }}
 
-      ## Setup caches
+      ## Setup build deps
       - name: Get npm cache directory
+        # DO NOT RUN on self-hosted
+        if: ${{ inputs.platform-arch == 'darwin-x64' }}
         id: npm-cache-dir
         run: |
-          echo "::set-output name=dir::$(npm config get cache)"
+          echo "npm_cache_dir=$(npm config get cache)" >> $GITHUB_ENV
       - name: Setup npm cache
+        # DO NOT RUN on self-hosted
+        if: ${{ inputs.platform-arch == 'darwin-x64' }}
         uses: actions/cache@v3
+        id: cache-npm
         with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: ${{ runner.os }}-${{ runner.arch }}-node
-      - name: Setup workspace cache
-        uses: actions/cache@v3
-        id: workspace-cache # use this to check for `cache-hit` ==> if: steps.workspace-cache.outputs.cache-hit != 'true'
-        with:
-          path: ${{ github.workspace }}
-          key: ${{ runner.os }}-${{ runner.arch }}-workspace
-
-      ## Setup electron build tools && workspace
+          path: ${{ env.npm-cache-dir }}
+          key: ${{ inputs.platform-arch }}-npm
       - name: Install electron-build-tools
-        run: npm i -g @electron/build-tools
+        # Run if self-hosted || cache miss
+        if: ${{ inputs.platform-arch != 'darwin-x64' || steps.cache-npm.outputs.cache-hit != 'true' }}
+        run: yarn global add @electron/build-tools
+
+      # TODO - also set up goma in here? self-hosted ftw
       - name: Init working directory
-        if: steps.workspace-cache.outputs.cache-hit != 'true'
+        # DO NOT RUN on self-hosted
+        if: ${{ inputs.platform-arch == 'darwin-x64' }}
         run: |
           e init -r ${{ github.workspace }} -i release --fork mightyapp/electron release
           jq '.remotes.electron.origin = .remotes.electron.fork|del(.remotes.electron.fork)|.gen.args[.gen.args|length] |= "symbol_level = 1"|.gen.args[.gen.args|length] |= "blink_symbol_level = 1"' \
@@ -65,30 +92,56 @@ jobs:
           sed -i.bak 's/electron\/electron/mightyapp\/electron/' ${{ github.workspace }}/.gclient
           rm ${{ github.workspace }}/.gclient.bak
           mkdir -p ${{ github.workspace }}/src
-          # git clone git@github.com:mightyapp/electron ${{ github.workspace }}/src/electron --branch aidan/rebase-15-x-y
+      - name: Setup third_party cache
+        # DO NOT RUN on self-hosted
+        if: ${{ inputs.platform-arch == 'darwin-x64' }}
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}
+          # dont bother specifying this by arch; it's 6GB so we can only have one.
+          # `e sync` will sort out any issues
+          key: reusable-build-third-party
 
-      # Build && publish
+      # Build && make dist available in the cache
       ## Checkout, sync, and build MgElectron
       - name: Checkout electron src
         uses: actions/checkout@v3
         with:
           # relative to ${{ github.workspace }}
           path: src/electron
+      - name: Read electron version
+        run: |
+          echo "electron_version=$(jq .version ${{ github.workspace }}/src/electron/package.json)" >> $GITHUB_ENV
       - name: Sync Electron & Cr deps
         run: e sync
       - name: Build electron src
         run: e build
 
-      ## Publish output (artifact && checksum)
+      ## Publish output artifacts
+      - name: Setup built output (dist) cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/src/out/Release/dist.zip
+          key: ${{ inputs.dist-cache-key != '' && inputs.dist-cache-key || 'dist-${{ env.electron_version }}-${{ inputs.platform-arch }}' }}
       - name: Prepare release artifact
+        # make sure to delete any cached `.zip`s first,
+        # so `e build` guarantees to overwrite it
         run: |
           rm -rf ${{ github.workspace }}/src/out/Release/*.zip
           e build electron:dist
-      - name: Get release artifact checksum
-        run: |
-          echo "::set-output name=checksum::$(shasum -a 256 ${{ github.workspace }}/src/out/Release/dist.zip | awk '{ print $1 })'"
-      - name: Upload release artifact
+      - name: Upload distributable artifact
         uses: actions/upload-artifact@v3
         with:
-          name: electron-${{ runner.os }}-${{ runner.architecture }}
+          name: electron-v${{ env.electron_version }}-${{ inputs.platform-arch }}.zip
           path: ${{ github.workspace }}/src/out/Release/dist.zip
+      - name: Install sentry-cli
+        uses: mathieu-bour/setup-sentry-cli@1.1.0
+        if: ${{ inputs.skip-sentry == false }}
+        with:
+          token: ${{ secrets.SENTRY_TOKEN }}
+          organization: mightyapp
+          project: mighty
+      - name: Upload symbols to Sentry
+        if: ${{ inputs.skip-sentry == false }}
+        run: |
+          sentry-cli upload-dif --include-sources --wait ${{ github.workspace }}/src/out/Release/Electron\ Framework.dSYM ${{ github.workspace }}/src/out/Release/Electron.dSYM
