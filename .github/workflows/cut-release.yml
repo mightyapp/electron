@@ -21,6 +21,10 @@ on:
   # 🚨 Be very careful with these, as this is a public repo.
   #    See: https://docs.github.com/en/actions/hosting-your-own-runners/about-self-hosted-runners#self-hosted-runner-security
 
+env:
+  node-version: '14'
+  python-version: '3.10'
+
 # Jobs should use the following dist-cache-key formats:
 # win32, linux: `dist-${{ inputs.electron-version }}-${{ matrix.platform-arch }}`
 # darwin: `dist-${{ inputs.electron-version }}-mighty.${{ inputs.mighty-patch }}-${{ matrix.platform-arch }}`
@@ -36,7 +40,6 @@ jobs:
   # todo - skip iff release existed
   load-or-build-artifacts:
     name: Load or build Electron artifacts for supported platforms
-    runs-on: ubuntu-18.04
     # TODO - re-enable this
     # needs: find-or-create-release
     strategy:
@@ -44,6 +47,7 @@ jobs:
         platform-arch: [win32-x64, linux-x64]
         # TODO - re-enable the full list; once the self-hosted runner is available
         # platform-arch: [win32-x64, linux-x64, darwin-x64, darwin-arm64]
+    runs-on: ${{ startsWith(matrix.platform-arch, 'darwin-') && 'macos-latest' || 'ubuntu-18.04' }}
     steps:
       - name: Set version string
         run: |
@@ -59,39 +63,34 @@ jobs:
         with:
           path: ${{ github.workspace }}/electron-v${{ env.version_string }}.zip
           key: dist-${{ env.dist_cache_key }}
-      - name: Download upstream dist
+      - name: Download upstream dist (non-darwin)
         # iff we didn't hit cache && are not on darwin (macOS)
         if: ${{ steps.dist-cache.outputs.cache-hit != 'true' && !startsWith(matrix.platform-arch, 'darwin-') }}
         run: |
           curl -L -O https://github.com/electron/electron/releases/download/v${{ inputs.electron-version }}/electron-v${{ env.version_string }}.zip
-      - name: Build our own dist
+      - name: Prepare our build env (darwin-only)
         # iff we didn't hit cache && are on darwin (macOS)
         if: ${{ steps.dist-cache.outputs.cache-hit != 'true' && startsWith(matrix.platform-arch, 'darwin-') }}
+        uses: ./.github/actions/prepare-build-env
+      - name: Build our own dist (darwin-only)
+        # iff we didn't hit cache && are on darwin (macOS)
+        if: ${{ steps.dist-cache.outputs.cache-hit != 'true' && startsWith(matrix.platform-arch, 'darwin-') }}
+        uses: ./.github/actions/build
         id: build-job
-        uses: ./.github/workflow/reusable-build-macos.yml
         with:
           platform-arch: ${{ matrix.platform-arch }}
           dist-cache-key: ${{ env.dist_cache_key }}
-        secrets:
-          SENTRY_TOKEN: ${{ secrets.SENTRY_TOKEN }}
-      - name: Try pulling output from cache again
+          sentry-token: ${{ secrets.SENTRY_TOKEN }}
+      - name: Move our dist into the cache (darwin-only)
         # iff we didn't hit cache && are on darwin (macOS)
         if: ${{ steps.dist-cache.outputs.cache-hit != 'true' && startsWith(matrix.platform-arch, 'darwin-') }}
-        id: refetch-cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ github.workspace }}/electron-v${{ env.version_string }}.zip
-          key: dist-${{ env.dist_cache_key }}
-      # TODO - do we need this??
-      # - name: Download build artifact, if we couldn't fetch from cache
-      #   # iff we didn't hit cache && are on darwin (macOS) && refetch-cache didn't hit
-      #   if: ${{ steps.dist-cache.outputs.cache-hit != 'true' && startsWith(matrix.platform-arch, 'darwin-') && steps.refetch-cache.outputs.cache-hit != 'true'}}
-      #   uses: TKTK
+        run: |
+          mv ${{ github.workspace }}/src/out/Release/dist.zip ${{ github.workspace }}/electron-v${{ env.version_string }}.zip
       - name: Publish artifact to release for ${{ matrix.platform-arch }}
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          path: ${{ github.workspace }}/electron-v${{ env.version_string }}.zip
+          file: ${{ github.workspace }}/electron-v${{ env.version_string }}.zip
           asset_name: electron-v${{ env.version_string }}.zip
           tag: v${{ inputs.electron-version }}-mighty.${{ inputs.mighty-patch }}
           overwrite: true
@@ -104,28 +103,24 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - name: Fetch win32-x64 cached output
-        id: dist-cache
         uses: actions/cache@v3
         with:
           path: ${{ github.workspace }}/electron-v${{ inputs.electron-version }}-win32-x64.zip
           # keep in sync with TKTK
           key: dist-${{ inputs.electron-version }}-win32-x64
       - name: Fetch linux-x64 cached output
-        id: dist-cache
         uses: actions/cache@v3
         with:
           path: ${{ github.workspace }}/electron-v${{ inputs.electron-version }}-linux-x64.zip
           # keep in sync with TKTK
           key: dist-${{ inputs.electron-version }}-linux-x64
       - name: Fetch darwin-x64 cached output
-        id: dist-cache
         uses: actions/cache@v3
         with:
           path: ${{ github.workspace }}/electron-v${{ inputs.electron-version }}-darwin-x64.zip
           # keep in sync with TKTK
           key: dist-${{ inputs.electron-version }}-mighty.${{ inputs.mighty-patch }}-darwin-x64
       - name: Fetch darwin-arm64 cached output
-        id: dist-cache
         uses: actions/cache@v3
         with:
           path: ${{ github.workspace }}/electron-v${{ inputs.electron-version }}-darwin-arm64.zip
@@ -140,7 +135,7 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          path: ${{ github.workspace }}/SHASUMS256.txt
+          file: ${{ github.workspace }}/SHASUMS256.txt
           # TODO - restore this
           # asset_name: SHASUMS256.txt
           asset_name: SHASUMS256-FAKE.txt
