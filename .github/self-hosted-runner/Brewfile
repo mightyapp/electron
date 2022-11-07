@@ -1,0 +1,10 @@
+# used to programmatically create a valid `/etc/kcpassword` file
+# and enable auto-login on boot without having to vnc into the box
+# see: https://github.com/xfreebird/kcpassword
+tap "xfreebird/utils"
+brew "kcpassword"
+
+brew "fnm"
+brew "gh"
+brew "jq"
+brew "python@3.9"
