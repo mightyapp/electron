@@ -15,21 +15,11 @@ runs:
     - name: Checkout electron src
       uses: actions/checkout@v3
       with:
-        # relative to ${{ github.workspace }}
-        path: workspace/src/electron
+        path: ${{ github.workspace }}/src/electron
     - name: Read electron version
       shell: 'zsh -e {0}'
       run: |
-        echo "electron_version=$(jq .version ${{ github.workspace }}/workspace/src/electron/package.json)" >> $GITHUB_ENV
-    - name: Setup third_party cache
-      # DO NOT RUN on self-hosted
-      if: ${{ inputs.platform-arch == 'darwin-x64' }}
-      uses: actions/cache@v3
-      with:
-        path: ${{ github.workspace }}/workspace/src/third_party
-        # dont bother specifying this by arch; it's 6GB so we can only have one.
-        # `e sync` will sort out any issues
-        key: reusable-build-third-party
+        echo "electron_version=$(jq .version ${{ github.workspace }}/src/electron/package.json)" >> $GITHUB_ENV
     - name: Sync Electron & Cr deps
       shell: 'zsh -e {0}'
       run: e sync
@@ -43,13 +33,13 @@ runs:
       # so `e build` guarantees to overwrite it
       shell: 'zsh -e {0}'
       run: |
-        rm -rf ${{ github.workspace }}/workspace/src/out/Release/*.zip
+        rm -rf ${{ github.workspace }}/src/out/Release/*.zip
         e build electron:dist
     - name: Upload distributable artifact
       uses: actions/upload-artifact@v3
       with:
         name: electron-v${{ env.electron_version }}-${{ inputs.platform-arch }}.zip
-        path: ${{ github.workspace }}/workspace/src/out/Release/dist.zip
+        path: ${{ github.workspace }}/src/out/Release/dist.zip
     - name: Install sentry-cli
       uses: mathieu-bour/setup-sentry-cli@1.1.0
       if: ${{ inputs.sentry_token != '' }}
@@ -61,4 +51,4 @@ runs:
       if: ${{ inputs.sentry_token != '' }}
       shell: 'zsh -e {0}'
       run: |
-        sentry-cli upload-dif --include-sources --wait ${{ github.workspace }}/workspace/src/out/Release/Electron\ Framework.dSYM ${{ github.workspace }}/workspace/src/out/Release/Electron.dSYM
+        sentry-cli upload-dif --include-sources --wait ${{ github.workspace }}/src/out/Release/Electron\ Framework.dSYM ${{ github.workspace }}/src/out/Release/Electron.dSYM

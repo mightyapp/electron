@@ -1,43 +1,69 @@
 name: Prepare Electron build environment
+inputs:
+  is-self-hosted:
+    required: true
+    type: boolean
+  node-version:
+    required: false
+    type: string
+    default: '16'
+  python-version:
+    required: false
+    type: string
+    default: '3.9'
 
 runs:
   using: 'composite'
   steps:
     # Prepare env
     ## Setup languages
-    - name: Setup Node.js ${{ env.node-version }} (GH-hosted)
+    ### Iff self-hosted, we only need to ensure node.js is loaded in our shell
+    - name: Setup Node.js ${{ inputs.node-version }} (self-hosted)
+      if: ${{ inputs.is-self-hosted }}
+      shell: 'zsh -e {0}'
+      run: |
+        source $HOME/.zshrc
+        fnm use ${{ inputs.node-version }}
+
+    ### Iff gh-hosted, setup node & python like usual
+    - name: Setup Node.js ${{ inputs.node-version }} (GH-hosted)
+      if: ${{ !inputs.is-self-hosted }}
       uses: actions/setup-node@v3
       with:
-        node-version: ${{ env.node-version }}
+        node-version: ${{ inputs.node-version }}
     - name: Setup Python3
+      if: ${{ !inputs.is-self-hosted }}
       uses: actions/setup-python@v4
       with:
-        python-version: ${{ env.python-version }}
+        python-version: ${{ inputs.python-version }}
 
-    ## Setup build deps
+    ### Iff gh-hosted, setup other build deps
     - name: Get npm cache directory
+      if: ${{ !inputs.is-self-hosted }}
       id: npm-cache-dir
       shell: 'zsh -e {0}'
       run: |
         echo "npm-cache-dir=$(npm config get cache)" >> $GITHUB_ENV
     - name: Setup npm cache
+      if: ${{ !inputs.is-self-hosted }}
       uses: actions/cache@v3
-      id: cache-npm
       with:
         path: ${{ env.npm-cache-dir }}
         key: ${{ runner.os }}-${{ runner.arch }}-npm
     - name: Install electron-build-tools
+      if: ${{ !inputs.is-self-hosted }}
       shell: 'zsh -e {0}'
       run: npm i -g @electron/build-tools
 
-    # TODO - also set up goma in here? self-hosted ftw
+    ### Iff gh-hosted, finish by setting up our workspace
     - name: Init working directory
+      if: ${{ !inputs.is-self-hosted }}
       shell: 'zsh -e {0}'
       run: |
-        e init -r ${{ github.workspace }}/workspace -i release --fork mightyapp/electron release
+        e init -r ${{ github.workspace }} -i release --fork mightyapp/electron release
         jq '.remotes.electron.origin = .remotes.electron.fork|del(.remotes.electron.fork)|.gen.args[.gen.args|length] |= "symbol_level = 1"|.gen.args[.gen.args|length] |= "blink_symbol_level = 1"' \
           ~/.electron_build_tools/configs/evm.release.json > ~/.electron_build_tools/configs/evm.release.json.tmp
         mv ~/.electron_build_tools/configs/evm.release.json.tmp ~/.electron_build_tools/configs/evm.release.json
-        sed -i.bak 's/electron\/electron/mightyapp\/electron/' ${{ github.workspace }}/workspace/.gclient
-        rm ${{ github.workspace }}/workspace/.gclient.bak
-        mkdir -p ${{ github.workspace }}/workspace/src
+        sed -i.bak 's/electron\/electron/mightyapp\/electron/' ${{ github.workspace }}/.gclient
+        rm ${{ github.workspace }}/.gclient.bak
+        mkdir -p ${{ github.workspace }}/src

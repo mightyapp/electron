@@ -21,13 +21,11 @@ on:
   # 🚨 Be very careful with these, as this is a public repo.
   #    See: https://docs.github.com/en/actions/hosting-your-own-runners/about-self-hosted-runners#self-hosted-runner-security
 
-env:
-  node-version: '14'
-  python-version: '3.10'
-
 # Jobs should use the following dist-cache-key formats:
-# win32, linux: `dist-${{ inputs.electron-version }}-${{ matrix.platform-arch }}`
-# darwin: `dist-${{ inputs.electron-version }}-mighty.${{ inputs.mighty-patch }}-${{ matrix.platform-arch }}`
+# - when downloading the zip (win32, linux):
+#   - `dist-${{ inputs.electron-version }}-${{ matrix.platform-arch }}`
+# - when building the zip (darwin):
+#   - `dist-${{ inputs.electron-version }}-mighty.${{ inputs.mighty-patch }}-${{ matrix.platform-arch }}`
 
 jobs:
   # TODO - implement this
@@ -44,54 +42,52 @@ jobs:
     # needs: find-or-create-release
     strategy:
       matrix:
-        platform-arch: [win32-x64, linux-x64]
-        # TODO - re-enable the full list; once the self-hosted runner is available
-        # platform-arch: [win32-x64, linux-x64, darwin-x64, darwin-arm64]
-    runs-on: ${{ startsWith(matrix.platform-arch, 'darwin-') && 'macos-latest' || 'ubuntu-18.04' }}
+        include:
+          - platform-arch: win32-x64
+            is-custom-build: false
+            runner: ubuntu-18.04
+          - platform-arch: linux-x64
+            is-custom-build: false
+            runner: ubuntu-18.04
+          - platform-arch: darwin-x64
+            is-custom-build: true
+            runner: [self-hosted, macOS, X64]
+          - platform-arch: darwin-arm64
+            is-custom-build: true
+            runner: [self-hosted, macOS, ARM64]
+    runs-on: ${{ matrix.runner }}
+    env:
+      version-string: ${{ inputs.electron-version }}-${{ matrix.platform-arch }}
     steps:
-      - name: Set version string
-        run: |
-          echo "version_string=${{ inputs.electron-version }}-${{ matrix.platform-arch }}" >> $GITHUB_ENV
-          echo "dist_cache_key=${{ inputs.electron-version }}-${{ matrix.platform-arch }}" >> $GITHUB_ENV
-      - name: Override dist cache key for macOS builds
-        if: ${{ startsWith(matrix.platform-arch, 'darwin') }}
-        run: |
-          echo "dist_cache_key=${{ inputs.electron-version }}-mighty.${{ inputs.mighty-patch }}-${{ matrix.platform-arch }}" >> $GITHUB_ENV
       - name: Setup cache for built output (dist)
         id: dist-cache
         uses: actions/cache@v3
         with:
-          path: ${{ github.workspace }}/electron-v${{ env.version_string }}.zip
-          key: dist-${{ env.dist_cache_key }}
-      - name: Download upstream dist (non-darwin)
-        # iff we didn't hit cache && are not on darwin (macOS)
-        if: ${{ steps.dist-cache.outputs.cache-hit != 'true' && !startsWith(matrix.platform-arch, 'darwin-') }}
+          path: ${{ github.workspace }}/src/out/Release/dist.zip
+          key: dist-${{ inputs.electron-version }}-${{ matrix.is-custom-build && 'mighty.${{ inputs.mighty-patch }}-'}}${{ matrix.platform-arch }}
+      - name: Download upstream dist (non-custom builds)
+        # iff we ARE NOT building on a self-hosted machine && did not hit cache
+        if: ${{ !matrix.is-custom-build && steps.dist-cache.outputs.cache-hit != 'true' }}
         run: |
-          curl -L -O https://github.com/electron/electron/releases/download/v${{ inputs.electron-version }}/electron-v${{ env.version_string }}.zip
-      - name: Prepare our build env (darwin-only)
-        # iff we didn't hit cache && are on darwin (macOS)
-        if: ${{ steps.dist-cache.outputs.cache-hit != 'true' && startsWith(matrix.platform-arch, 'darwin-') }}
-        uses: ./.github/actions/prepare-build-env
-      - name: Build our own dist (darwin-only)
-        # iff we didn't hit cache && are on darwin (macOS)
-        if: ${{ steps.dist-cache.outputs.cache-hit != 'true' && startsWith(matrix.platform-arch, 'darwin-') }}
-        uses: ./.github/actions/build
-        id: build-job
+          curl -L -o "${{ github.workspace }}/src/out/Release/dist.zip" --create-dirs https://github.com/electron/electron/releases/download/v${{ inputs.electron-version }}/electron-v${{ env.version-string }}.zip
+      - name: Prepare our build env (custom builds only)
+        if: ${{ matrix.is-custom-build }}
+        uses: mightyapp/electron/.github/actions/prepare-build-env@aidan/rebase-15-x-y
+        with:
+          is-self-hosted: true
+      - name: Build our own dist (custom builds only)
+        # iff we ARE building on a self-hosted machine && did not hit cache
+        if: ${{ !matrix.is-custom-build && steps.dist-cache.outputs.cache-hit != 'true' }}
+        uses: mightyapp/electron/.github/actions/build@aidan/rebase-15-x-y
         with:
           platform-arch: ${{ matrix.platform-arch }}
-          dist-cache-key: ${{ env.dist_cache_key }}
           sentry-token: ${{ secrets.SENTRY_TOKEN }}
-      - name: Move our dist into the cache (darwin-only)
-        # iff we didn't hit cache && are on darwin (macOS)
-        if: ${{ steps.dist-cache.outputs.cache-hit != 'true' && startsWith(matrix.platform-arch, 'darwin-') }}
-        run: |
-          mv ${{ github.workspace }}/src/out/Release/dist.zip ${{ github.workspace }}/electron-v${{ env.version_string }}.zip
       - name: Publish artifact to release for ${{ matrix.platform-arch }}
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ${{ github.workspace }}/electron-v${{ env.version_string }}.zip
-          asset_name: electron-v${{ env.version_string }}.zip
+          file: ${{ github.workspace }}/src/out/Release/dist.zip
+          asset_name: electron-v${{ env.version-string }}.zip
           tag: v${{ inputs.electron-version }}-mighty.${{ inputs.mighty-patch }}
           overwrite: true
 
@@ -124,7 +120,6 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ github.workspace }}/electron-v${{ inputs.electron-version }}-darwin-arm64.zip
-          # keep in sync with TKTK
           key: dist-${{ inputs.electron-version }}-mighty.${{ inputs.mighty-patch }}-darwin-arm64
       # TODO - do we need to check for cache misses and otherwise download artifacts here?
       #        i'm guessing not, since we depend on `load-or-build` which manages cache
@@ -136,8 +131,6 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ${{ github.workspace }}/SHASUMS256.txt
-          # TODO - restore this
-          # asset_name: SHASUMS256.txt
-          asset_name: SHASUMS256-FAKE.txt
+          asset_name: SHASUMS256.txt
           tag: v${{ inputs.electron-version }}-mighty.${{ inputs.mighty-patch }}
           overwrite: true

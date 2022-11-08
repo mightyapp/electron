@@ -1,17 +1,8 @@
 name: Reusable Build && Publish Template
 on:
+  # Allow the workflow to be run manually.
   workflow_dispatch:
     inputs:
-      platform-arch:
-        required: true
-        default: darwin-x64
-        type: choice
-        options:
-          - darwin-x64
-          - darwin-arm64
-      dist-cache-key:
-        required: false
-        type: string
       skip-sentry:
         required: false
         type: boolean
@@ -20,35 +11,24 @@ on:
   # 🚨 Be very careful with these, as this is a public repo.
   #    See: https://docs.github.com/en/actions/hosting-your-own-runners/about-self-hosted-runners#self-hosted-runner-security
 
-env:
-  node-version: '14'
-  python-version: '3.10'
-
 jobs:
   build:
     name: Build MgElectron
-    runs-on: 'macos-latest'
-    # runs-on: toJSON('[self-hosted, macOS, ${{ endsWith(inputs.platform-arch, '-x64') && 'x64' || 'ARM64' }}]')
+    strategy:
+      matrix:
+        include:
+          - runner: [self-hosted, macOS, X64]
+            platform-arch: 'darwin-x64'
+          - runner: [self-hosted, macOS, ARM64]
+            platform-arch: 'darwin-arm64'
+    runs-on: ${{ matrix.runner }}
     steps:
-      # we must checkout the repo to use our actions!
-      # do not check it out to the src/electron path yet, lest it break `e init`
-      - name: Checkout electron src
-        # TODO - DO NOT RUN on self-hosted?
-        if: ${{ inputs.platform-arch == 'darwin-x64' }}
-        uses: actions/checkout@v3
       - name: Prepare env
-        # TODO - DO NOT RUN on self-hosted
-        if: ${{ inputs.platform-arch == 'darwin-x64' }}
-        uses: ./.github/actions/prepare-build-env
-      - name: Setup built output (dist) cache
-        if: ${{ inputs.dist-cache-key != '' }}
-        uses: actions/cache@v3
+        uses: mightyapp/electron/.github/actions/prepare-build-env@aidan/rebase-15-x-y
         with:
-          path: ${{ github.workspace }}/workspace/src/out/Release/dist.zip
-          key: ${{ inputs.dist-cache-key }}
+          is-self-hosted: true
       - name: Build Electron && publish artifact
-        uses: ./.github/actions/build
+        uses: mightyapp/electron/.github/actions/build@aidan/rebase-15-x-y
         with:
-          platform-arch: ${{ inputs.platform-arch }}
-          dist-cache-key: ${{ inputs.dist-cache-key }}
+          platform-arch: ${{ matrix.platform-arch }}
           sentry-token: ${{ secrets.SENTRY_TOKEN }}
